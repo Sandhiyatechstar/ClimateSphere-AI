@@ -1,0 +1,127 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --color-space-950: #02050e;
+    --color-space-900: #050c1b;
+    --color-space-800: #0a1733;
+    --color-cyan-glow: #06b6d4;
+    --color-teal-glow: #14b8a6;
+    --color-earth-blue: #0284c7;
+  }
+
+  html,
+  body {
+    @apply min-h-full bg-space-950 text-slate-100 font-sans antialiased overflow-x-hidden;
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply tracking-tight font-semibold text-white;
+  }
+
+  code, pre, kbd {
+    @apply font-mono;
+  }
+}
+
+@layer utilities {
+  /* Earth-from-space cosmic background layers */
+  .bg-earth-orbit {
+    background-color: #02050e;
+    background-image:
+      /* Top soft deep space radial fade */
+      radial-gradient(ellipse 90% 60% at 50% -20%, rgba(14, 116, 144, 0.22), transparent 70%),
+      /* Atmospheric blue limb scatter along bottom center */
+      radial-gradient(ellipse 120% 70% at 50% 115%, rgba(6, 182, 212, 0.28), rgba(37, 99, 235, 0.2) 40%, rgba(2, 6, 23, 0.95) 75%),
+      /* Subtle teal oceanic reflection */
+      radial-gradient(circle 800px at 85% 85%, rgba(20, 184, 166, 0.12), transparent 60%),
+      /* Distant nebula highlight */
+      radial-gradient(circle 600px at 15% 20%, rgba(59, 130, 246, 0.08), transparent 50%);
+  }
+
+  /* Atmospheric curvature horizon line */
+  .earth-atmosphere-glow {
+    position: relative;
+  }
+  .earth-atmosphere-glow::after {
+    content: '';
+    position: absolute;
+    bottom: -150px;
+    left: -10%;
+    right: -10%;
+    height: 300px;
+    border-radius: 50%;
+    background: radial-gradient(ellipse at center, rgba(34, 211, 238, 0.2) 0%, rgba(37, 99, 235, 0.12) 35%, transparent 70%);
+    filter: blur(40px);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* Glassmorphism containers */
+  .glass-card {
+    background: rgba(10, 23, 51, 0.55);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(56, 189, 248, 0.15);
+  }
+
+  .glass-card-hover {
+    transition: all 0.2s ease;
+  }
+  .glass-card-hover:hover {
+    background: rgba(14, 31, 68, 0.7);
+    border-color: rgba(34, 211, 238, 0.35);
+    box-shadow: 0 8px 30px -4px rgba(6, 182, 212, 0.18);
+  }
+
+  .glass-input {
+    background: rgba(8, 18, 41, 0.75);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(56, 189, 248, 0.2);
+  }
+
+  .glass-header {
+    background: rgba(4, 11, 26, 0.75);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border-bottom: 1px solid rgba(56, 189, 248, 0.12);
+  }
+
+  /* Star particle / subtle dust effect */
+  .stars-layer {
+    background-image: radial-gradient(rgba(255, 255, 255, 0.3) 1px, transparent 1px);
+    background-size: 48px 48px;
+  }
+
+  /* Hide scrollbar */
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
+
+/* Custom Sleek Scrollbars */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(56, 189, 248, 0.2);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(6, 182, 212, 0.4);
+}
