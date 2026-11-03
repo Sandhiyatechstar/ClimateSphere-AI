@@ -20,13 +20,38 @@ export interface ApiClientConfig {
   apiKey?: string;
 }
 
+export const getApiBaseUrl = (): string => {
+  if (typeof window !== 'undefined') {
+    const saved = localStorage.getItem('climatesphere_api_url');
+    if (saved && saved.trim()) {
+      return saved.trim().replace(/\/+$/, '');
+    }
+  }
+  const envUrl = (import.meta.env.VITE_API_BASE_URL as string)?.trim();
+  if (envUrl) {
+    return envUrl.replace(/\/+$/, '');
+  }
+  if (import.meta.env.DEV) {
+    return 'http://127.0.0.1:8000';
+  }
+  return '';
+};
+
+export const setApiBaseUrl = (url: string): void => {
+  if (typeof window !== 'undefined') {
+    const clean = url.trim().replace(/\/+$/, '');
+    if (clean) {
+      localStorage.setItem('climatesphere_api_url', clean);
+      API_CONFIG.baseUrl = clean;
+    } else {
+      localStorage.removeItem('climatesphere_api_url');
+      API_CONFIG.baseUrl = getApiBaseUrl();
+    }
+  }
+};
+
 export const API_CONFIG: ApiClientConfig = {
-  // If VITE_API_BASE_URL is configured (e.g. Render backend URL in Netlify), use it.
-  // Otherwise in local dev, fall back to the standard local backend server.
-  // In production builds without an explicit URL, fall back to empty string for relative proxying.
-  baseUrl:
-    (import.meta.env.VITE_API_BASE_URL as string)?.trim() ||
-    (import.meta.env.DEV ? 'http://127.0.0.1:8000' : ''),
+  baseUrl: getApiBaseUrl(),
   timeoutMs: 75000,
   apiKey: import.meta.env.VITE_API_KEY as string | undefined,
 };
@@ -34,10 +59,10 @@ export const API_CONFIG: ApiClientConfig = {
 /**
  * Construct an absolute URL safely, normalizing slashes and supporting relative proxy paths.
  */
-export function buildApiUrl(endpoint: string, baseUrl: string = API_CONFIG.baseUrl): URL {
-  const cleanBase = (baseUrl || '').trim().replace(/\/+$/, '');
+export function buildApiUrl(endpoint: string, baseUrl?: string): URL {
+  const activeBase = (baseUrl ?? getApiBaseUrl() ?? '').trim().replace(/\/+$/, '');
   const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
-  const fullPath = `${cleanBase}${cleanEndpoint}`;
+  const fullPath = `${activeBase}${cleanEndpoint}`;
 
   if (fullPath.startsWith('http://') || fullPath.startsWith('https://')) {
     return new URL(fullPath);
@@ -66,6 +91,16 @@ export class ApiClientError extends Error {
  * Standardized typed HTTP GET request with abort timeout
  */
 export async function apiGet<T>(endpoint: string, params?: Record<string, string | number | undefined>): Promise<T> {
+  const activeBase = getApiBaseUrl();
+  const isGitHubPages = typeof window !== 'undefined' && window.location.hostname.endsWith('github.io');
+  if (!activeBase && isGitHubPages) {
+    throw new ApiClientError(
+      'The chatbot frontend is live on GitHub Pages, but needs a connected backend API URL to process live queries.',
+      503,
+      { error: 'backend_not_connected' }
+    );
+  }
+
   const url = buildApiUrl(endpoint);
   if (params) {
     Object.entries(params).forEach(([key, value]) => {
@@ -123,6 +158,16 @@ export async function apiGet<T>(endpoint: string, params?: Record<string, string
  * Standardized typed HTTP POST request with abort timeout.
  */
 export async function apiPost<T>(endpoint: string, body: unknown): Promise<T> {
+  const activeBase = getApiBaseUrl();
+  const isGitHubPages = typeof window !== 'undefined' && window.location.hostname.endsWith('github.io');
+  if (!activeBase && isGitHubPages) {
+    throw new ApiClientError(
+      'The chatbot frontend is live on GitHub Pages, but needs a connected backend API URL to process live AI queries.',
+      503,
+      { error: 'backend_not_connected' }
+    );
+  }
+
   const url = buildApiUrl(endpoint).toString();
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), API_CONFIG.timeoutMs);
@@ -141,6 +186,14 @@ export async function apiPost<T>(endpoint: string, body: unknown): Promise<T> {
     clearTimeout(timer);
 
     if (!response.ok) {
+      if (response.status === 405) {
+        throw new ApiClientError(
+          'GitHub Pages cannot process POST requests directly. Please connect your running backend API URL (Render or localhost) in Settings.',
+          503,
+          { error: 'backend_not_connected' }
+        );
+      }
+
       let errPayload: any = null;
       try {
         errPayload = await response.json();
@@ -174,6 +227,16 @@ export async function apiPost<T>(endpoint: string, body: unknown): Promise<T> {
  * Standardized multipart/form-data upload request with abort timeout.
  */
 export async function apiUpload<T>(endpoint: string, formData: FormData): Promise<T> {
+  const activeBase = getApiBaseUrl();
+  const isGitHubPages = typeof window !== 'undefined' && window.location.hostname.endsWith('github.io');
+  if (!activeBase && isGitHubPages) {
+    throw new ApiClientError(
+      'The chatbot frontend is live on GitHub Pages, but needs a connected backend API URL to process file uploads.',
+      503,
+      { error: 'backend_not_connected' }
+    );
+  }
+
   const url = buildApiUrl(endpoint).toString();
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 60000); // 60s timeout for large file uploads
@@ -188,6 +251,14 @@ export async function apiUpload<T>(endpoint: string, formData: FormData): Promis
     clearTimeout(timer);
 
     if (!response.ok) {
+      if (response.status === 405) {
+        throw new ApiClientError(
+          'GitHub Pages cannot process upload requests directly. Please connect your running backend API URL (Render or localhost) in Settings.',
+          503,
+          { error: 'backend_not_connected' }
+        );
+      }
+
       let errPayload: any = null;
       try {
         errPayload = await response.json();

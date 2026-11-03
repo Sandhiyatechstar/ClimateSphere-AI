@@ -9,6 +9,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { useWeather } from '../../hooks/useWeather';
+import { getApiBaseUrl, setApiBaseUrl } from '../../services/apiClient';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -19,11 +20,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
   const { units, setTemperatureUnit } = useWeather();
   const [activeTab, setActiveTab] = useState<'units' | 'ai'>('units');
   const [selectedProvider, setSelectedProvider] = useState<string>('gemini');
+  const [apiUrl, setApiUrl] = useState<string>(() => getApiBaseUrl());
   const [savedNotice, setSavedNotice] = useState(false);
 
   if (!isOpen) return null;
 
   const handleSave = () => {
+    setApiBaseUrl(apiUrl);
     setSavedNotice(true);
     setTimeout(() => {
       setSavedNotice(false);
@@ -195,6 +198,25 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                 />
                 <span className="text-[10px] text-slate-500 font-mono mt-1 block">
                   Keys are stored locally in sandbox memory and never transmitted externally.
+                </span>
+              </div>
+
+              <div className="pt-2 border-t border-slate-800/80">
+                <label className="text-xs font-semibold text-slate-200 block mb-1 font-mono flex items-center justify-between">
+                  <span>Backend Server API URL</span>
+                  <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded ${apiUrl ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30' : 'bg-amber-500/10 text-amber-300 border border-amber-500/30'}`}>
+                    {apiUrl ? 'Configured' : 'Needs Backend on GitHub Pages'}
+                  </span>
+                </label>
+                <input
+                  type="text"
+                  value={apiUrl}
+                  onChange={(e) => setApiUrl(e.target.value)}
+                  placeholder="https://your-service.onrender.com or http://127.0.0.1:8000"
+                  className="w-full bg-slate-900 border border-slate-800 text-slate-200 rounded-xl px-3 py-2 font-mono text-xs focus:outline-none focus:border-cyan-500/50"
+                />
+                <span className="text-[10px] text-slate-400 font-mono mt-1 block">
+                  GitHub Pages is static and requires a live FastAPI backend (e.g. Render, Railway, or local <code className="text-cyan-400">http://127.0.0.1:8000</code>).
                 </span>
               </div>
             </div>

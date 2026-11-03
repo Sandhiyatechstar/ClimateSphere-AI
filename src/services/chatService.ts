@@ -133,7 +133,17 @@ export const chatService = {
 
       let errorContent = '';
 
-      if (errCode === 'gemini_api_key_missing' || (status === 503 && rawMsg.toLowerCase().includes('gemini_api_key_missing'))) {
+      if (errCode === 'backend_not_connected' || status === 405) {
+        errorContent = `### 🌐 Backend Connection Required
+
+ClimateSphere AI is live on GitHub Pages! To enable live conversational AI and real-time weather telemetry, connect your backend server.
+
+#### Quick Steps to Connect:
+1. **Cloud Backend on Render (Free)**:
+   Deploy your repository's \`backend\` service to **[Render](https://render.com/)** using the included \`render.yaml\` blueprint.
+2. **Set the Backend URL**:
+   Click the ⚙️ **Settings** button in the top right, enter your backend URL (e.g. \`https://climatesphere-backend.onrender.com\` or \`http://127.0.0.1:8000\`), and click **Apply Changes**.`;
+      } else if (errCode === 'gemini_api_key_missing' || (status === 503 && rawMsg.toLowerCase().includes('gemini_api_key_missing'))) {
         errorContent = 'The AI conversational service is not configured yet. Please configure the API key in the backend environment and restart the server.';
       } else if (errCode === 'gemini_high_demand' || (status === 503 && rawMsg.toLowerCase().includes('high demand'))) {
         errorContent = 'The service is currently experiencing high demand. Please wait a moment and click **Regenerate** below.';

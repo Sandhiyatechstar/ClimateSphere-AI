@@ -57,6 +57,7 @@ class Settings(BaseSettings):
             "http://127.0.0.1:5173",
             "http://localhost:3000",
             "http://127.0.0.1:3000",
+            "https://sandhiyatechstar.github.io",
         ],
         description="Frontend origins allowed by CORS",
     )
@@ -88,6 +89,7 @@ class Settings(BaseSettings):
             "http://127.0.0.1:5173",
             "http://localhost:3000",
             "http://127.0.0.1:3000",
+            "https://sandhiyatechstar.github.io",
         ]
         for dev in dev_origins:
             if dev not in parsed_origins:
