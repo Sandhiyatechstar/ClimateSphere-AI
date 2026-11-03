@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>ClimateSphere AI</title>
+    <script>
+      // Single Page App redirect for GitHub Pages
+      var path = window.location.pathname;
+      var repo = '/ClimateSphere-AI';
+      if (path.startsWith(repo)) {
+        var subPath = path.slice(repo.length);
+        if (subPath.startsWith('/')) {
+          subPath = subPath.slice(1);
+        }
+        window.location.replace(repo + '/#' + (subPath ? '/' + subPath : ''));
+      } else {
+        window.location.replace(repo + '/');
+      }
+    </script>
+  </head>
+  <body>
+  </body>
+</html>

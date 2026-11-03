@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { WeatherProvider } from './context/WeatherContext';
 import { ChatProvider } from './context/ChatContext';
 import { HomePage } from './pages/HomePage';
@@ -19,7 +19,7 @@ export const App: React.FC = () => {
   return (
     <WeatherProvider>
       <ChatProvider>
-        <BrowserRouter>
+        <HashRouter>
           <Routes>
             {/* Main AI Chatbot Full-Screen Homepage */}
             <Route path="/" element={<HomePage />} />
@@ -44,7 +44,7 @@ export const App: React.FC = () => {
             <Route path="/404" element={<NotFoundPage />} />
             <Route path="*" element={<NotFoundPage />} />
           </Routes>
-        </BrowserRouter>
+        </HashRouter>
       </ChatProvider>
     </WeatherProvider>
   );
