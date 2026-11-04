@@ -39,10 +39,11 @@ def test_amoc_and_complex_research_detection():
 
 
 def test_research_timeout_configuration():
-    """Verify research timeout allocates 60 seconds while standard timeout remains 30 seconds."""
+    """Verify research timeout allocates 25 seconds while standard timeout remains 20 seconds for safe cloud proxy margins."""
+    _cfg.get_settings.cache_clear()
     settings = _cfg.get_settings()
-    assert settings.gemini_timeout_seconds == 30.0
-    assert settings.gemini_research_timeout_seconds == 60.0
+    assert settings.gemini_timeout_seconds == 20.0
+    assert settings.gemini_research_timeout_seconds == 25.0
     assert settings.gemini_connect_timeout_seconds == 10.0
 
 
@@ -167,3 +168,157 @@ def test_chat_endpoint_504_timeout_response(monkeypatch):
     data = resp.json()
     assert data["error"] == "gemini_timeout"
     assert "took longer than expected" in data["message"]
+
+
+# ── 7. Regression Suite for AMOC Research and Fallback ────────────────────────
+
+@respx.mock
+def test_successful_amoc_research_response(monkeypatch):
+    """Regression test: Successful AMOC research response via Gemini returns 200 with scientific sources."""
+    monkeypatch.setenv("GEMINI_API_KEY", "test_gemini_key")
+    monkeypatch.setenv("GROQ_API_KEY", "")
+    _cfg.get_settings.cache_clear()
+
+    respx.post(url__regex=r".*/models/.*:generateContent").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "candidates": [{
+                    "content": {
+                        "parts": [{"text": "The Atlantic Meridional Overturning Circulation (AMOC) is a major oceanic conveyor belt. Published assessments from IPCC AR6 and observational studies indicate weakening under warming scenarios."}],
+                        "role": "model",
+                    },
+                    "finishReason": "STOP",
+                }]
+            },
+        )
+    )
+
+    resp = client.post(
+        "/api/v1/chat",
+        json={"prompt": "What are the latest findings about AMOC stability?"},
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "AMOC" in data["content"] or "Atlantic" in data["content"]
+    assert any("NOAA" in src or "IPCC" in src or "WMO" in src for src in data["data_sources"])
+
+
+@respx.mock
+def test_gemini_timeout_with_groq_fallback_e2e(monkeypatch):
+    """Regression test: Gemini research timeout transparently falls back to Groq and returns 200."""
+    monkeypatch.setenv("GEMINI_API_KEY", "test_gemini_key")
+    monkeypatch.setenv("GROQ_API_KEY", "test_groq_key")
+    _cfg.get_settings.cache_clear()
+
+    # Gemini times out
+    respx.post(url__regex=r".*/models/.*:generateContent").mock(
+        side_effect=httpx.TimeoutException("Read timed out")
+    )
+
+    with patch(
+        "app.services.ai.router.generate_groq_response",
+        new=AsyncMock(return_value=(
+            "Based on published scientific assessments, the AMOC exhibits decadal variability with observed measurements from the RAPID array.",
+            "Groq (llama-3.3-70b-versatile)"
+        )),
+    ):
+        resp = client.post(
+            "/api/v1/chat",
+            json={"prompt": "What are the latest findings about AMOC stability?"},
+        )
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "AMOC" in data["content"]
+    assert "Groq" in data["model_identifier"]
+
+
+@respx.mock
+def test_both_providers_fail_returns_clean_504(monkeypatch):
+    """Regression test: When Gemini research times out and Groq also fails, returns clean HTTP 504."""
+    monkeypatch.setenv("GEMINI_API_KEY", "test_gemini_key")
+    monkeypatch.setenv("GROQ_API_KEY", "test_groq_key")
+    _cfg.get_settings.cache_clear()
+
+    # Gemini times out
+    respx.post(url__regex=r".*/models/.*:generateContent").mock(
+        side_effect=httpx.TimeoutException("Read timed out")
+    )
+
+    with patch(
+        "app.services.ai.router.generate_groq_response",
+        new=AsyncMock(side_effect=GroqServiceError("Groq gateway error", status_code=502, error_code="groq_server_error")),
+    ):
+        resp = client.post(
+            "/api/v1/chat",
+            json={"prompt": "What are the latest findings about AMOC stability?"},
+        )
+
+    assert resp.status_code == 504
+    data = resp.json()
+    assert data["error"] == "gemini_timeout"
+    assert "took longer than expected" in data["message"]
+
+
+@respx.mock
+def test_ordinary_weather_and_climate_continue_working(monkeypatch):
+    """Regression test: Ordinary weather questions and climate explanations continue working properly."""
+    monkeypatch.setenv("GEMINI_API_KEY", "test_gemini_key")
+    monkeypatch.setenv("GROQ_API_KEY", "test_groq_key")
+    monkeypatch.setenv("OPENWEATHER_API_KEY", "test_weather_key")
+    _cfg.get_settings.cache_clear()
+
+    # 1. Weather query for Chennai
+    respx.get(url__regex=r"https://api\.openweathermap\.org/data/2\.5/weather.*").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "name": "Chennai",
+                "sys": {"country": "IN"},
+                "coord": {"lat": 13.0827, "lon": 80.2707},
+                "weather": [{"id": 800, "main": "Clear", "description": "clear sky", "icon": "01d"}],
+                "main": {"temp": 303.15, "feels_like": 306.15, "temp_min": 301.15, "temp_max": 305.15, "pressure": 1012, "humidity": 65},
+                "wind": {"speed": 4.5, "deg": 90},
+                "clouds": {"all": 10},
+                "visibility": 10000,
+                "dt": 1700000000,
+            },
+        )
+    )
+
+    with patch(
+        "app.services.ai.router.generate_groq_response",
+        new=AsyncMock(return_value=(
+            "The current weather in Chennai is 30°C with clear skies and 65% humidity.",
+            "Groq (openai/gpt-oss-20b)"
+        )),
+    ):
+        resp_weather = client.post(
+            "/api/v1/chat",
+            json={"prompt": "What is the current weather in Chennai?"},
+        )
+
+    assert resp_weather.status_code == 200
+    weather_data = resp_weather.json()
+    assert weather_data["weather_telemetry"] is not None
+    assert weather_data["weather_telemetry"]["city"] == "Chennai"
+    assert "Chennai" in weather_data["content"]
+
+    # 2. General climate explanation
+    with patch(
+        "app.services.ai.router.generate_groq_response",
+        new=AsyncMock(return_value=(
+            "Global warming refers to the long-term heating of Earth's climate system observed since the pre-industrial period.",
+            "Groq (openai/gpt-oss-20b)"
+        )),
+    ):
+        resp_climate = client.post(
+            "/api/v1/chat",
+            json={"prompt": "Explain global warming in simple terms."},
+        )
+
+    assert resp_climate.status_code == 200
+    climate_data = resp_climate.json()
+    assert climate_data["weather_telemetry"] is None
+    assert "Global warming" in climate_data["content"]

@@ -76,7 +76,7 @@ IMAGE_ANALYSIS_INSTRUCTION = """
 - Never claim to definitively establish the root cause, specific rainfall totals, or precise meteorological trigger of a disaster from visual imagery alone.
 """
 
-FALLBACK_MODELS = ["gemini-3.5-flash-lite", "gemini-flash-latest"]
+FALLBACK_MODELS = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"]
 
 def _is_research_query(prompt: str) -> bool:
     """Detect whether a query requires comprehensive scientific synthesis or deep reasoning."""

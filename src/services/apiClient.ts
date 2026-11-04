@@ -50,6 +50,14 @@ export const setApiBaseUrl = (url: string): void => {
   }
 };
 
+const isAbortError = (err: unknown): boolean => {
+  if (!err) return false;
+  if (typeof DOMException !== 'undefined' && err instanceof DOMException && err.name === 'AbortError') return true;
+  if (err instanceof Error && (err.name === 'AbortError' || err.message.toLowerCase().includes('aborted'))) return true;
+  if (typeof err === 'object' && 'name' in err && (err as { name: string }).name === 'AbortError') return true;
+  return false;
+};
+
 export const API_CONFIG: ApiClientConfig = {
   baseUrl: getApiBaseUrl(),
   timeoutMs: 75000,
@@ -146,7 +154,7 @@ export async function apiGet<T>(endpoint: string, params?: Record<string, string
     if (err instanceof ApiClientError) {
       throw err;
     }
-    if (err instanceof DOMException && err.name === 'AbortError') {
+    if (isAbortError(err)) {
       throw new ApiClientError('That request took longer than expected. Please try again.', 504);
     }
     const message = err instanceof Error ? err.message : 'Network failure connecting to ClimateSphere backend.';
@@ -215,7 +223,7 @@ export async function apiPost<T>(endpoint: string, body: unknown): Promise<T> {
     if (err instanceof ApiClientError) {
       throw err;
     }
-    if (err instanceof DOMException && err.name === 'AbortError') {
+    if (isAbortError(err)) {
       throw new ApiClientError('That request took longer than expected. Please try again.', 504);
     }
     const message = err instanceof Error ? err.message : 'Network failure connecting to ClimateSphere backend.';
@@ -280,7 +288,7 @@ export async function apiUpload<T>(endpoint: string, formData: FormData): Promis
     if (err instanceof ApiClientError) {
       throw err;
     }
-    if (err instanceof DOMException && err.name === 'AbortError') {
+    if (isAbortError(err)) {
       throw new ApiClientError('File upload timed out. Please try with smaller files or verify network.', 504);
     }
     const message = err instanceof Error ? err.message : 'Network failure uploading files to ClimateSphere backend.';

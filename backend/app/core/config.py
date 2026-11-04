@@ -114,11 +114,11 @@ class Settings(BaseSettings):
         description="Groq model name to use for generation (default: openai/gpt-oss-20b)",
     )
     groq_timeout_seconds: float = Field(
-        default=20.0,
+        default=15.0,
         description="Total timeout for standard Groq API calls in seconds",
     )
     groq_research_timeout_seconds: float = Field(
-        default=30.0,
+        default=15.0,
         description="Timeout for Groq when processing research fallback queries in seconds",
     )
     groq_fallback_models: List[str] = Field(
@@ -139,7 +139,7 @@ class Settings(BaseSettings):
         description="Google Gemini API key — required for AI chat endpoint",
     )
     gemini_model: str = Field(
-        default="gemini-3.5-flash",
+        default="gemini-2.5-flash",
         description="Gemini model name to use for generation",
     )
     gemini_base_url: str = Field(
@@ -163,12 +163,12 @@ class Settings(BaseSettings):
         description="Timeout for outgoing HTTP requests to weather APIs",
     )
     gemini_timeout_seconds: float = Field(
-        default=30.0,
-        description="Read timeout for standard Gemini AI conversational generation (default: 30s)",
+        default=20.0,
+        description="Read timeout for standard Gemini AI conversational generation (default: 20s)",
     )
     gemini_research_timeout_seconds: float = Field(
-        default=60.0,
-        description="Read timeout for complex scientific research questions (default: 60s)",
+        default=25.0,
+        description="Read timeout for complex scientific research questions (default: 25s)",
     )
     gemini_connect_timeout_seconds: float = Field(
         default=10.0,

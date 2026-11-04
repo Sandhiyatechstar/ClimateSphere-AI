@@ -99,6 +99,20 @@ def _build_groq_messages(
         {"role": "system", "content": SYSTEM_INSTRUCTION}
     ]
 
+    from app.services.gemini.client import _is_research_query
+    if _is_research_query(prompt):
+        messages.append({
+            "role": "system",
+            "content": (
+                "[SCIENTIFIC RESEARCH SYNTHESIS DIRECTIVE]:\n"
+                "- Ground response in consensus bodies: IPCC AR6, NOAA, NASA, and WMO.\n"
+                "- Clearly distinguish physical observations (RAPID array at 26.5°N, OSNAP), numerical models (CMIP6), and statistical early-warning indicators.\n"
+                "- Explicitly state that this is an authoritative synthesis of published peer-reviewed scientific literature and major assessment reports.\n"
+                "- State scientific uncertainties and competing viewpoints honestly.\n"
+                "- Never fabricate citations, URLs, or unverified findings."
+            )
+        })
+
     if history:
         recent_history = history[-8:] if len(history) > 8 else history
         for msg in recent_history:

@@ -149,7 +149,14 @@ ClimateSphere AI is live on GitHub Pages! To enable live conversational AI and r
         errorContent = 'The service is currently experiencing high demand. Please wait a moment and click **Regenerate** below.';
       } else if (errCode === 'gemini_rate_limited' || errCode === 'groq_rate_limited' || status === 429) {
         errorContent = 'The service is receiving a high volume of requests. Please pause a moment and click **Regenerate** below.';
-      } else if (status === 504 || errCode === 'gemini_timeout' || errCode === 'groq_timeout' || rawMsg.toLowerCase().includes('took longer than expected')) {
+      } else if (
+        status === 504 ||
+        errCode === 'gemini_timeout' ||
+        errCode === 'groq_timeout' ||
+        rawMsg.toLowerCase().includes('took longer than expected') ||
+        rawMsg.toLowerCase().includes('timed out') ||
+        rawMsg.toLowerCase().includes('timeout')
+      ) {
         errorContent = 'That request took longer than expected. Please try again or click **Regenerate** below.';
       } else if (status === 0 || rawMsg.toLowerCase().includes('failed to fetch') || rawMsg.toLowerCase().includes('network')) {
         const targetUrl = (API_CONFIG.baseUrl || 'the local backend').replace(/\/+$/, '');
@@ -164,9 +171,10 @@ ClimateSphere AI is live on GitHub Pages! To enable live conversational AI and r
 The frontend was unable to connect to the backend API at \`${targetUrl}\`.
 
 #### Troubleshooting Checklist
-1. **Render Free Tier Spin-up**: If your backend is hosted on Render's free tier, the service may be spinning up from a sleep state. Please wait 30–60 seconds and try again.
-2. **CORS Configuration**: Verify that your Netlify frontend domain is included in the backend's \`ALLOWED_ORIGINS\` environment variable on Render.
-3. **API Base URL**: Verify that \`VITE_API_BASE_URL\` in your Netlify site settings matches your live Render service URL.`;
+1. **Render Free Tier Spin-up**: If your backend is hosted on Render's free tier, the service may be spinning up from a sleep state (takes ~30–60 seconds on the first request). Please wait a moment and click **Regenerate** below.
+2. **CORS Configuration**: Verify that your GitHub Pages origin (\`https://sandhiyatechstar.github.io\`) is included in the backend's \`ALLOWED_ORIGINS\` environment variable on Render.
+3. **Backend Service Health**: Verify your backend service status at [${targetUrl}/api/v1/health](${targetUrl}/api/v1/health).
+4. **Settings API URL**: If using a custom URL, verify the backend address configured in ⚙️ **Settings**.`;
         } else {
           errorContent = `### ⚠️ ClimateSphere Backend Offline
 
@@ -184,6 +192,8 @@ uvicorn app.main:app --reload --port 8000
 
 *Once the server starts, resend your message.*`;
         }
+      } else if (status === 502 || errCode === 'gemini_server_error' || errCode === 'groq_server_error') {
+        errorContent = 'The AI service encountered a temporary upstream error. Please click **Regenerate** below to retry.';
       } else {
         errorContent = `### ⚠️ ClimateSphere AI Service Notice
 
@@ -192,7 +202,7 @@ Unable to process your query at this moment.
 > **Service Code:** ${errCode || 'service_error'}
 > **Details:** ${_sanitizeErrorMessage(rawMsg)}
 
-*Please try again or rephrase your question.*`;
+*Please try again or click **Regenerate** below.*`;
       }
 
       return {
