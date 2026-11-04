@@ -212,11 +212,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                   type="text"
                   value={apiUrl}
                   onChange={(e) => setApiUrl(e.target.value)}
-                  placeholder="https://your-service.onrender.com or http://127.0.0.1:8000"
+                  placeholder="https://climatesphere-backend.onrender.com or http://localhost:8000"
                   className="w-full bg-slate-900 border border-slate-800 text-slate-200 rounded-xl px-3 py-2 font-mono text-xs focus:outline-none focus:border-cyan-500/50"
                 />
                 <span className="text-[10px] text-slate-400 font-mono mt-1 block">
-                  GitHub Pages is static and requires a live FastAPI backend (e.g. Render, Railway, or local <code className="text-cyan-400">http://127.0.0.1:8000</code>).
+                  Connected to Render backend by default. Can override with a custom URL or local <code className="text-cyan-400">http://localhost:8000</code>.
                 </span>
               </div>
             </div>

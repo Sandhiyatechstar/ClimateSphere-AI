@@ -23,18 +23,18 @@ export interface ApiClientConfig {
 export const getApiBaseUrl = (): string => {
   if (typeof window !== 'undefined') {
     const saved = localStorage.getItem('climatesphere_api_url');
-    if (saved && saved.trim()) {
+    if (saved && saved.trim() && saved !== 'undefined' && saved !== 'null') {
       return saved.trim().replace(/\/+$/, '');
     }
   }
   const envUrl = (import.meta.env.VITE_API_BASE_URL as string)?.trim();
-  if (envUrl) {
+  if (envUrl && envUrl !== 'undefined' && envUrl !== 'null') {
     return envUrl.replace(/\/+$/, '');
   }
   if (import.meta.env.DEV) {
-    return 'http://127.0.0.1:8000';
+    return 'http://localhost:8000';
   }
-  return '';
+  return 'https://climatesphere-backend.onrender.com';
 };
 
 export const setApiBaseUrl = (url: string): void => {
