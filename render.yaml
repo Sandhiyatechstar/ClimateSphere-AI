@@ -20,7 +20,7 @@ services:
       - key: LOG_LEVEL
         value: INFO
       - key: GEMINI_MODEL
-        value: gemini-2.5-flash
+        value: gemini-3.8-flash
       - key: GROQ_MODEL
         value: openai/gpt-oss-20b
       - key: ALLOWED_ORIGINS

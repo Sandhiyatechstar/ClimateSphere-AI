@@ -44,8 +44,23 @@ logger = logging.getLogger(__name__)
 # ── Application Lifespan ──────────────────────────────────────────────────────
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Non-blocking diagnostic validation of configured Gemini model
+    try:
+        from app.services.gemini.client import validate_configured_gemini_model
+        diag = await validate_configured_gemini_model()
+        logger.info(
+            "[Startup] Gemini model verification: status=%s, active_model=%s, available_count=%s",
+            diag.get("status"),
+            diag.get("selected_model"),
+            diag.get("available_models_count", 0),
+        )
+    except Exception as exc:
+        logger.warning("[Startup] Non-blocking Gemini model verification warning: %s", exc)
+
     yield
+    from app.services.gemini.client import close_gemini_client
     from app.services.groq.client import close_groq_client
+    await close_gemini_client()
     await close_groq_client()
     logger.info("ClimateSphere AI background resources shut down gracefully.")
 

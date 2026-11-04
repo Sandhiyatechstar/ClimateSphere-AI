@@ -145,6 +145,10 @@ ClimateSphere AI is live on GitHub Pages! To enable live conversational AI and r
    Click the ⚙️ **Settings** button in the top right, enter your backend URL (e.g. \`https://climatesphere-backend.onrender.com\` or \`http://127.0.0.1:8000\`), and click **Apply Changes**.`;
       } else if (errCode === 'gemini_api_key_missing' || (status === 503 && rawMsg.toLowerCase().includes('gemini_api_key_missing'))) {
         errorContent = 'The AI conversational service is not configured yet. Please configure the API key in the backend environment and restart the server.';
+      } else if (errCode === 'gemini_model_not_found' || errCode === 'model_not_found' || (status === 404 && rawMsg.toLowerCase().includes('model'))) {
+        errorContent = 'The requested AI model is currently undergoing updates or unavailable. Please click **Regenerate** below to retry with a supported model.';
+      } else if (errCode === 'gemini_auth_error' || errCode === 'groq_auth_error' || status === 401 || status === 403) {
+        errorContent = 'The AI service encountered an authentication issue. Please check the backend API key credentials.';
       } else if (errCode === 'gemini_high_demand' || (status === 503 && rawMsg.toLowerCase().includes('high demand'))) {
         errorContent = 'The service is currently experiencing high demand. Please wait a moment and click **Regenerate** below.';
       } else if (errCode === 'gemini_rate_limited' || errCode === 'groq_rate_limited' || status === 429) {

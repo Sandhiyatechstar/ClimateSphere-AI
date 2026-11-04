@@ -139,8 +139,8 @@ class Settings(BaseSettings):
         description="Google Gemini API key — required for AI chat endpoint",
     )
     gemini_model: str = Field(
-        default="gemini-2.5-flash",
-        description="Gemini model name to use for generation",
+        default="gemini-3.8-flash",
+        description="Gemini model name to use for generation (default: gemini-3.8-flash)",
     )
     gemini_base_url: str = Field(
         default="https://generativelanguage.googleapis.com/v1beta/models",

@@ -6,6 +6,7 @@ Provides a concise system instruction for ClimateSphere AI to behave like a frie
 
 import asyncio
 import logging
+import time
 from typing import Any, Dict, List, Optional, Tuple
 
 import httpx
@@ -76,7 +77,27 @@ IMAGE_ANALYSIS_INSTRUCTION = """
 - Never claim to definitively establish the root cause, specific rainfall totals, or precise meteorological trigger of a disaster from visual imagery alone.
 """
 
-FALLBACK_MODELS = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"]
+# Verified active Google Gemini Flash and Flash-Lite models supporting generateContent.
+# Discontinued/shut-down models (gemini-1.5-flash, gemini-2.0-flash, gemini-2.5-flash) are strictly omitted.
+FALLBACK_MODELS = [
+    "gemini-3.8-flash",
+    "gemini-3.5-flash-lite",
+    "gemini-flash-latest",
+    "gemini-flash-lite-latest",
+    "gemini-3.5-flash",
+    "gemini-3-flash-preview",
+]
+
+_last_active_gemini_model: Optional[str] = None
+
+def get_last_active_gemini_model() -> Optional[str]:
+    """Return the name of the Gemini model that successfully fulfilled the most recent request."""
+    return _last_active_gemini_model
+
+def set_last_active_gemini_model(model: Optional[str]) -> None:
+    """Set or reset the last active Gemini model name."""
+    global _last_active_gemini_model
+    _last_active_gemini_model = model
 
 def _is_research_query(prompt: str) -> bool:
     """Detect whether a query requires comprehensive scientific synthesis or deep reasoning."""
@@ -184,6 +205,28 @@ async def close_gemini_client() -> None:
         await _gemini_client.aclose()
         _gemini_client = None
 
+def _normalize_model_name(model: str) -> str:
+    """Normalize model string to clean identifier without leading 'models/' or whitespace."""
+    clean = model.strip()
+    if clean.startswith("models/"):
+        clean = clean[len("models/"):]
+    return clean
+
+def _build_model_endpoint(base_url: str, model: str, method: str = "generateContent") -> str:
+    """Construct safe API endpoint URL preventing accidental models/models/... paths."""
+    clean_base = base_url.rstrip("/")
+    clean_model = _normalize_model_name(model)
+    if clean_base.endswith("/models"):
+        return f"{clean_base}/{clean_model}:{method}"
+    return f"{clean_base}/models/{clean_model}:{method}"
+
+def _build_models_list_endpoint(base_url: str) -> str:
+    """Construct safe Google Gemini models.list endpoint URL."""
+    clean_base = base_url.rstrip("/")
+    if clean_base.endswith("/models"):
+        return clean_base
+    return f"{clean_base}/models"
+
 async def _execute_gemini_request(
     client: httpx.AsyncClient,
     model: str,
@@ -193,7 +236,7 @@ async def _execute_gemini_request(
     timeout: Optional[httpx.Timeout] = None,
 ) -> Tuple[int, Dict[str, Any], str]:
     """Execute a single HTTP request to Gemini API with dedicated per-request timeout."""
-    endpoint = f"{base_url.rstrip('/')}/{model}:generateContent"
+    endpoint = _build_model_endpoint(base_url, model, method="generateContent")
     headers = {"Content-Type": "application/json", "x-goog-api-key": api_key}
     response = await client.post(endpoint, headers=headers, json=payload, timeout=timeout)
     data = {}
@@ -203,6 +246,108 @@ async def _execute_gemini_request(
         pass
     return response.status_code, data, response.text
 
+_cached_available_models: Optional[List[str]] = None
+_last_models_check_time: float = 0.0
+_MODELS_CACHE_TTL_SECONDS: float = 3600.0  # Cache for 1 hour
+
+async def fetch_available_gemini_models(
+    api_key: Optional[str] = None,
+    force_refresh: bool = False,
+) -> List[str]:
+    """
+    Query Gemini models.list endpoint (v1beta/models) using x-goog-api-key header.
+    Returns names of models that support generateContent and are available to this API key.
+    Cached in memory for 1 hour to prevent per-request overhead.
+    Never exposes API keys in logs, errors, or query parameters.
+    """
+    global _cached_available_models, _last_models_check_time
+    now = time.monotonic()
+    if (
+        not force_refresh
+        and _cached_available_models is not None
+        and (now - _last_models_check_time) < _MODELS_CACHE_TTL_SECONDS
+    ):
+        return _cached_available_models
+
+    settings = get_settings()
+    key = (api_key or settings.gemini_api_key or "").strip()
+    if not key:
+        return []
+
+    client = _get_gemini_http_client()
+    url = _build_models_list_endpoint(settings.gemini_base_url)
+    headers = {"Content-Type": "application/json", "x-goog-api-key": key}
+
+    try:
+        resp = await client.get(url, headers=headers, timeout=10.0)
+        if resp.status_code == 200:
+            data = resp.json()
+            models = data.get("models", [])
+            valid_models: List[str] = []
+            for m in models:
+                methods = m.get("supportedGenerationMethods", [])
+                if "generateContent" in methods:
+                    name = m.get("name", "")
+                    clean_name = _normalize_model_name(name)
+                    if clean_name:
+                        valid_models.append(clean_name)
+            _cached_available_models = valid_models
+            _last_models_check_time = now
+            logger.info("Retrieved %d available generateContent models from Gemini API.", len(valid_models))
+            return valid_models
+        else:
+            logger.warning("Gemini models.list returned HTTP %d: %s", resp.status_code, resp.text[:120])
+            return _cached_available_models or []
+    except Exception as exc:
+        logger.warning("Could not fetch Gemini models list: %s", exc)
+        return _cached_available_models or []
+
+
+async def validate_configured_gemini_model(
+    configured_model: Optional[str] = None,
+    api_key: Optional[str] = None,
+) -> Dict[str, Any]:
+    """
+    Diagnostic validation function verifying the configured model is supported and available.
+    Returns diagnostic summary without exposing sensitive keys.
+    """
+    settings = get_settings()
+    target_model = _normalize_model_name(configured_model or settings.gemini_model or "gemini-3.8-flash")
+    key = (api_key or settings.gemini_api_key or "").strip()
+    if not key:
+        return {
+            "status": "unconfigured",
+            "configured_model": target_model,
+            "message": "GEMINI_API_KEY is not configured.",
+        }
+
+    available = await fetch_available_gemini_models(api_key=key)
+    if not available:
+        return {
+            "status": "unverified",
+            "configured_model": target_model,
+            "message": "Unable to verify models list upstream; using configured fallback candidates.",
+        }
+
+    is_available = target_model in available
+    active_model = target_model if is_available else None
+    if not active_model:
+        for candidate in FALLBACK_MODELS:
+            clean_candidate = _normalize_model_name(candidate)
+            if clean_candidate in available:
+                active_model = clean_candidate
+                break
+
+    return {
+        "status": "verified" if is_available else "fallback",
+        "configured_model": target_model,
+        "selected_model": active_model or target_model,
+        "is_configured_model_available": is_available,
+        "available_models_count": len(available),
+        "supported_fallbacks": [m for m in FALLBACK_MODELS if _normalize_model_name(m) in available],
+    }
+
+
 async def generate_gemini_response(
     prompt: str,
     history: Optional[List[ChatHistoryMessage]] = None,
@@ -210,52 +355,61 @@ async def generate_gemini_response(
     images: Optional[List[Dict[str, str]]] = None,
 ) -> str:
     """Call Google Gemini REST API and return the generated text response.
-    Includes limited retries with backoff and automatic fallback for high demand or rate limits.
+    Includes limited retries with backoff and automatic fallback across verified models.
     Supports multimodal image analysis via native inlineData parts.
     """
+    global _last_active_gemini_model
+    _last_active_gemini_model = None
     settings = get_settings()
     if not settings.gemini_api_key or not settings.gemini_api_key.strip():
         logger.error("GEMINI_API_KEY is not configured in backend environment.")
         raise GeminiAPIKeyMissingError()
     api_key = settings.gemini_api_key.strip()
     base_url = settings.gemini_base_url
-    primary_model = settings.gemini_model.strip() or "gemini-3.5-flash"
+    primary_model = _normalize_model_name(settings.gemini_model.strip() or "gemini-3.8-flash")
 
-    # Assemble models to try: primary model first, followed by fast fallback
+    # Assemble models to try: primary model first, followed by verified supported fallbacks
     models_to_try = [primary_model]
     for fb in FALLBACK_MODELS:
-        if fb not in models_to_try:
-            models_to_try.append(fb)
-            break
+        clean_fb = _normalize_model_name(fb)
+        if clean_fb not in models_to_try:
+            models_to_try.append(clean_fb)
 
     payload = _build_gemini_payload(prompt, history, weather_context, images=images)
     last_error: Optional[GeminiServiceError] = None
 
     # Determine adaptive timeout based on query nature
     is_research = _is_research_query(prompt)
-    configured_timeout = getattr(settings, "gemini_timeout_seconds", 30.0)
-    research_timeout = getattr(settings, "gemini_research_timeout_seconds", 60.0)
+    configured_timeout = getattr(settings, "gemini_timeout_seconds", 20.0)
+    research_timeout = getattr(settings, "gemini_research_timeout_seconds", 25.0)
     connect_timeout = getattr(settings, "gemini_connect_timeout_seconds", 10.0)
-    # Research questions allow 60s for in-depth reasoning; standard queries use configured timeout (default: 30s)
     read_timeout = max(research_timeout, configured_timeout) if is_research else configured_timeout
-    request_timeout = httpx.Timeout(
-        connect=connect_timeout,
-        read=read_timeout,
-        write=10.0,
-        pool=10.0,
-    )
 
     client = _get_gemini_http_client()
 
     for attempt, model in enumerate(models_to_try, start=1):
+        # For initial attempts when fallbacks exist, allocate a responsive timeout (8s for chat, 12s for research)
+        # to ensure that an upstream high-demand or slow model quickly fails over to gemini-3.5-flash-lite.
+        per_attempt_read_timeout = (
+            min(read_timeout, 8.0) if (attempt == 1 and len(models_to_try) > 1 and not is_research)
+            else (min(read_timeout, 12.0) if (attempt == 1 and len(models_to_try) > 1 and is_research) else read_timeout)
+        )
+        request_timeout = httpx.Timeout(
+            connect=connect_timeout,
+            read=per_attempt_read_timeout,
+            write=10.0,
+            pool=10.0,
+        )
+
         logger.info(
             "Calling Gemini API with model %r (attempt %d/%d, read_timeout=%.1fs, is_research=%s)",
-            model,
+            _normalize_model_name(model),
             attempt,
             len(models_to_try),
-            read_timeout,
+            per_attempt_read_timeout,
             is_research,
         )
+        endpoint = _build_model_endpoint(base_url, model, method="generateContent")
         try:
             status_code, data, raw_text = await _execute_gemini_request(
                 client=client,
@@ -266,15 +420,25 @@ async def generate_gemini_response(
                 timeout=request_timeout,
             )
         except httpx.TimeoutException as exc:
-            logger.warning("Gemini timeout with model %r on attempt %d: %s", model, attempt, exc)
+            next_model = models_to_try[attempt] if attempt < len(models_to_try) else None
+            logger.warning(
+                "[Gemini Timeout Diagnostic] Model=%r | Timeout=%.1fs | NextCandidate=%r | "
+                "FallbackLoop=%s (attempt %d/%d)",
+                _normalize_model_name(model),
+                per_attempt_read_timeout,
+                next_model,
+                "CONTINUING" if next_model else "EXHAUSTED",
+                attempt,
+                len(models_to_try),
+            )
             last_error = GeminiServiceError(
                 "The Gemini AI service took longer than expected to synthesize a response. "
                 "The upstream server is experiencing high traffic or deep reasoning latency.",
                 status_code=504,
                 error_code="gemini_timeout",
             )
-            # On read timeout, do NOT attempt a second slow sequential attempt with another model.
-            # Fast fail-over allows router Groq fallback (for text queries) or prompt notification to user.
+            if attempt < len(models_to_try):
+                continue
             raise last_error from exc
         except httpx.NetworkError as exc:
             logger.error("Network error reaching Gemini with model %r: %s", model, exc)
@@ -284,7 +448,7 @@ async def generate_gemini_response(
                 error_code="gemini_network_error",
             )
             if attempt < len(models_to_try):
-                await asyncio.sleep(1.0)
+                await asyncio.sleep(0.3)
                 continue
             raise last_error from exc
 
@@ -308,47 +472,88 @@ async def generate_gemini_response(
                     status_code=502,
                     error_code="gemini_empty_response",
                 )
+            _last_active_gemini_model = _normalize_model_name(model)
             return parts[0]["text"]
 
         if status_code == 400:
             err_msg = data.get("error", {}).get("message", "Invalid request parameters.")
-            logger.error("Gemini 400 Bad Request: %s", err_msg)
+            logger.error("Gemini 400 Bad Request on model %r: %s", model, err_msg)
             raise GeminiServiceError(
                 f"Gemini API request error: {err_msg}",
                 status_code=400,
                 error_code="gemini_bad_request",
             )
+
         if status_code in (401, 403):
-            logger.error("Gemini API key authorization error (HTTP %d).", status_code)
+            err_msg = data.get("error", {}).get("message", "Invalid or unauthorized API key.")
+            logger.error("Gemini API authorization error (HTTP %d): %s", status_code, err_msg)
             raise GeminiServiceError(
                 "Invalid or unauthorized Gemini API key. Please verify your GEMINI_API_KEY in backend/.env.",
                 status_code=502,
                 error_code="gemini_auth_error",
             )
+
+        if status_code == 404:
+            err_msg = data.get("error", {}).get("message", raw_text[:200] or "Model not found or discontinued.")
+            next_model = models_to_try[attempt] if attempt < len(models_to_try) else None
+            logger.warning(
+                "[Gemini 404 Diagnostic] Model=%r | Endpoint=%s | API_Version=v1beta | "
+                "Phase=generateContent | Status=404 | Error=%s | NextCandidate=%r | "
+                "FallbackLoop=%s (attempt %d/%d)",
+                _normalize_model_name(model),
+                endpoint,
+                err_msg,
+                next_model,
+                "CONTINUING" if next_model else "EXHAUSTED",
+                attempt,
+                len(models_to_try),
+            )
+            last_error = GeminiServiceError(
+                f"Gemini model '{_normalize_model_name(model)}' was not found (HTTP 404): {err_msg}",
+                status_code=502,
+                error_code="gemini_model_not_found",
+            )
+            if attempt < len(models_to_try):
+                continue
+            raise last_error
+
         if status_code == 429:
-            logger.warning("Gemini API rate limit on model %r (HTTP 429).", model)
+            err_msg = data.get("error", {}).get("message", "Rate limit exceeded.")
+            logger.warning("Gemini API rate limit on model %r (HTTP 429): %s", model, err_msg)
             last_error = GeminiServiceError(
                 "Gemini AI rate limit reached. Please wait a moment before sending another message.",
                 status_code=429,
                 error_code="gemini_rate_limited",
             )
             if attempt < len(models_to_try):
-                await asyncio.sleep(1.5)
+                await asyncio.sleep(0.3)
                 continue
             raise last_error
+
         if status_code == 503:
             err_msg = data.get("error", {}).get("message", "High server demand.")
-            logger.warning("Gemini model %r returned HTTP 503: %s", model, err_msg)
+            next_model = models_to_try[attempt] if attempt < len(models_to_try) else None
+            logger.warning(
+                "[Gemini 503 Diagnostic] Model=%r | Endpoint=%s | Status=503 | Error=%s | "
+                "NextCandidate=%r | FallbackLoop=%s (attempt %d/%d)",
+                _normalize_model_name(model),
+                endpoint,
+                err_msg,
+                next_model,
+                "CONTINUING" if next_model else "EXHAUSTED",
+                attempt,
+                len(models_to_try),
+            )
             last_error = GeminiServiceError(
                 "Google Gemini AI is currently experiencing high demand. Spikes in demand are usually temporary.",
                 status_code=503,
                 error_code="gemini_high_demand",
             )
             if attempt < len(models_to_try):
-                logger.info("Attempting fallback to %r after 503 from %r", models_to_try[attempt], model)
-                await asyncio.sleep(1.0)
+                await asyncio.sleep(0.3)
                 continue
             raise last_error
+
         if status_code >= 500:
             logger.error("Gemini server error HTTP %d on model %r: %s", status_code, model, raw_text[:200])
             last_error = GeminiServiceError(
@@ -357,17 +562,17 @@ async def generate_gemini_response(
                 error_code="gemini_server_error",
             )
             if attempt < len(models_to_try):
-                await asyncio.sleep(1.0)
+                await asyncio.sleep(0.5)
                 continue
             raise last_error
-        logger.error("Unexpected Gemini response HTTP %d: %s", status_code, raw_text[:200])
+
+        logger.error("Unexpected Gemini response HTTP %d on model %r: %s", status_code, model, raw_text[:200])
         last_error = GeminiServiceError(
             f"Unexpected response from Gemini API ({status_code}).",
             status_code=502,
             error_code="gemini_unexpected_status",
         )
         if attempt < len(models_to_try):
-            await asyncio.sleep(1.0)
             continue
         raise last_error
 

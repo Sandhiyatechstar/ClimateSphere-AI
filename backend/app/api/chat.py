@@ -834,7 +834,7 @@ async def chat_interaction(request: ChatRequest, raw_req: Request = None) -> Cha
             ai_content = _build_comparison_fallback_content(
                 w1=weather_telemetry,
                 w2=second_weather_telemetry,
-                notice=f"Live meteorological telemetry retrieved successfully for both cities. Detailed AI commentary omitted ({reason}).",
+                notice="Live meteorological telemetry retrieved successfully for both cities. Detailed AI commentary is temporarily unavailable.",
             )
             model_identifier = "OpenWeatherMap Live Gateway"
         elif weather_telemetry or forecast_telemetry:
@@ -843,7 +843,7 @@ async def chat_interaction(request: ChatRequest, raw_req: Request = None) -> Cha
             ai_content = _build_weather_fallback_content(
                 weather_telemetry=weather_telemetry,
                 forecast_telemetry=forecast_telemetry,
-                notice=f"Live meteorological telemetry retrieved successfully. Detailed AI commentary omitted ({reason}).",
+                notice="Live meteorological telemetry retrieved successfully. Detailed AI commentary is temporarily unavailable.",
             )
             model_identifier = "OpenWeatherMap Live Gateway"
         else:

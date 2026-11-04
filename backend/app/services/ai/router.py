@@ -30,7 +30,11 @@ from app.core.exceptions import (
     GroqServiceError,
 )
 from app.schemas.chat import ChatHistoryMessage
-from app.services.gemini.client import generate_gemini_response
+from app.services.gemini.client import (
+    generate_gemini_response,
+    get_last_active_gemini_model,
+    set_last_active_gemini_model,
+)
 from app.services.groq.client import generate_groq_response
 
 logger = logging.getLogger(__name__)
@@ -164,6 +168,7 @@ async def route_and_generate(
                 "[AI Router] Groq API key not configured; transparently routing to Gemini."
             )
             try:
+                set_last_active_gemini_model(None)
                 gemini_text = await generate_gemini_response(
                     prompt=prompt,
                     history=history,
@@ -171,7 +176,7 @@ async def route_and_generate(
                     images=images,
                 )
                 duration_ms = int((time.monotonic() - t_start) * 1000)
-                gemini_model = settings.gemini_model
+                gemini_model = get_last_active_gemini_model() or settings.gemini_model
                 logger.info(
                     "[AI Router] Gemini generated response in %d ms (model: %s).",
                     duration_ms, gemini_model,
@@ -222,6 +227,7 @@ async def route_and_generate(
             )
             # Transparent fallback to Gemini
             try:
+                set_last_active_gemini_model(None)
                 gemini_text = await generate_gemini_response(
                     prompt=prompt,
                     history=history,
@@ -229,7 +235,7 @@ async def route_and_generate(
                     images=images,
                 )
                 duration_ms = int((time.monotonic() - t_start) * 1000)
-                gemini_model = settings.gemini_model
+                gemini_model = get_last_active_gemini_model() or settings.gemini_model
                 logger.info(
                     "[AI Router] Gemini fallback succeeded in %d ms (model: %s).",
                     duration_ms, gemini_model,
@@ -257,6 +263,7 @@ async def route_and_generate(
     # ─────────────────────────────────────────────────────────────────────────────
     else:
         try:
+            set_last_active_gemini_model(None)
             gemini_text = await generate_gemini_response(
                 prompt=prompt,
                 history=history,
@@ -264,7 +271,7 @@ async def route_and_generate(
                 images=images,
             )
             duration_ms = int((time.monotonic() - t_start) * 1000)
-            gemini_model = settings.gemini_model
+            gemini_model = get_last_active_gemini_model() or settings.gemini_model
             logger.info(
                 "[AI Router] Gemini primary succeeded in %d ms (model: %s, has_images=%s).",
                 duration_ms, gemini_model, has_images,
