@@ -58,8 +58,9 @@ _CLIMATE_SCIENCE_KEYWORDS = {
     "ice sheet", "ice sheets", "permafrost", "ocean acidification", "ocean heat",
     "ocean currents", "coriolis effect", "albedo", "solar radiation", "radiative forcing",
     "thermohaline circulation", "el nino", "la nina", "stratosphere", "troposphere",
-    "ozone layer", "heat dome", "tipping point", "carbon budget", "ipcc", "ar6",
+    "ozone layer", "heat dome", "tipping point", "tipping points", "carbon budget", "ipcc", "ar6",
     "wmo", "noaa", "extreme weather trends", "drought trends", "paleoclimate",
+    "amoc", "atlantic meridional", "circulation", "amoc stability",
 }
 
 
@@ -94,10 +95,11 @@ def determine_scientific_sources(prompt: str) -> List[str]:
     lower = prompt.lower()
     sources: List[str] = []
 
-    # 1. Marine, oceanic, atmospheric dynamics, El Niño / ENSO, cyclones
-    if any(k in lower for k in ["ocean", "sea", "marine", "el nino", "la nina", "coriolis", "currents", "cyclone", "hurricane"]):
+    # 1. Marine, oceanic, atmospheric dynamics, El Niño / ENSO, cyclones, AMOC
+    if any(k in lower for k in ["ocean", "sea", "marine", "el nino", "la nina", "coriolis", "currents", "cyclone", "hurricane", "amoc", "circulation", "tipping point"]):
         sources.append("National Oceanic and Atmospheric Administration (NOAA)")
         sources.append("World Meteorological Organization (WMO)")
+        sources.append("Intergovernmental Panel on Climate Change (IPCC AR6)")
 
     # 2. Cryosphere, polar ice, satellite data, solar radiation, Earth observations
     if any(k in lower for k in ["ice", "arctic", "antarctic", "glacier", "satellite", "albedo", "solar"]):

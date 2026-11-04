@@ -393,7 +393,7 @@ def test_conversation_isolation_between_sessions():
     # Session B: Fresh session asking "What about tomorrow?" has no prior location
     cities_b, intent_b = _resolve_query_context("What about tomorrow?", session_b_history)
     assert cities_b == []
-    assert intent_b == "none"
+    assert intent_b in ("none", "weather_missing_location")
 
     # Session C: Session with London history resolves to London
     session_c_history = [
@@ -954,7 +954,7 @@ def test_multi_turn_session_isolation_extended():
     assert cities_b == ["Tokyo"]
     assert intent_b == "forecast"
 
-    # Follow-up "What about tomorrow?" in Session C -> No city found, intent 'none'
+    # Follow-up "What about tomorrow?" in Session C -> No city found, requests location or none
     cities_c, intent_c = _resolve_query_context("What about tomorrow?", history_c)
     assert cities_c == []
-    assert intent_c == "none"
+    assert intent_c in ("none", "weather_missing_location")

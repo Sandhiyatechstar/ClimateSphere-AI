@@ -65,6 +65,43 @@ _STOP_WORDS = {
     "morning", "afternoon", "evening", "night", "detail", "details",
 }
 
+# Common expressions, conversational descriptors, and quality modifiers to reject from city extraction
+_COMMON_EXPRESSION_TERMS = {
+    "simple terms", "simple words", "simple language", "plain english", "plain terms",
+    "layman terms", "laymans terms", "layman's terms", "layman language", "easy terms",
+    "easy words", "brief", "briefly", "shortly", "in short", "summary", "summarize",
+    "detail", "details", "in detail", "in depth", "depth", "depths", "deep dive",
+    "general", "general terms", "high level", "overview", "scratch", "beginners",
+    "for beginners", "kids", "children", "students", "laypeople", "anyone", "everyone",
+    "example", "examples", "instance", "fact", "facts", "truth", "reality", "perspective",
+    "context", "science", "physics", "nature", "history", "future", "past", "earth",
+    "world", "globe", "concept", "theory", "mechanism", "principle", "reason", "reasons",
+    "cause", "causes", "effect", "effects", "impact", "impacts", "consequence",
+    "consequences", "action", "actions", "solution", "solutions", "effort", "efforts",
+    "terms", "words", "simple", "easy", "plain", "coastal areas", "tropical areas",
+    "urban areas", "rural areas", "coastal regions", "polar regions", "mountain regions",
+    "high pressure", "low pressure", "severe weather", "extreme weather", "amoc stability",
+    "latest findings", "amoc", "atlantic meridional overturning circulation",
+}
+
+# Words that should never form part of a valid city name
+_INVALID_CITY_WORDS = {
+    "simple", "terms", "plain", "english", "detail", "details", "depth", "depths",
+    "brief", "short", "general", "high", "level", "summary", "scratch", "layman",
+    "laymans", "layperson", "beginner", "beginners", "child", "children", "kid",
+    "kids", "anyone", "everyone", "someone", "people", "students", "explain",
+    "explanation", "definition", "overview", "basics", "fundamentals", "concept",
+    "theory", "mechanism", "fact", "facts", "truth", "reality", "science",
+    "physics", "nature", "history", "future", "past", "warming", "cooling",
+    "effect", "effects", "cause", "causes", "reason", "reasons", "impact",
+    "impacts", "change", "changes", "crisis", "action", "solution", "solutions",
+    "world", "globe", "earth", "atmosphere", "stratosphere", "troposphere",
+    "ocean", "oceans", "sea", "seas", "land", "space", "universe", "how",
+    "why", "what", "where", "when", "who", "which", "tell", "describe",
+    "discuss", "understand", "mean", "meaning", "define", "findings", "finding",
+    "stability", "amoc", "circulation", "layer", "cycle", "forcing",
+}
+
 # Known non-city scientific terms to blacklist from city extraction
 _NON_CITY_TERMS = {
     "the coriolis effect", "coriolis effect", "greenhouse effect", "greenhouse gases",
@@ -74,6 +111,8 @@ _NON_CITY_TERMS = {
     "ocean currents", "carbon cycle", "water cycle", "albedo", "solar radiation",
     "radiative forcing", "thermohaline circulation", "photosynthesis", "acid rain",
     "relative humidity", "atmospheric pressure", "barometric pressure", "details",
+    "amoc", "atlantic meridional overturning circulation", "tipping point", "tipping points",
+    "amoc stability", "carbon footprint", "sea level rise", "ocean acidification",
 }
 
 _BOUNDARY_WORDS = {
@@ -82,8 +121,36 @@ _BOUNDARY_WORDS = {
     "currently", "please", "this", "next", "tonight", "weekend", "weather",
     "forecast", "temperature", "temp", "climate", "over", "during", "and", "or",
     "but", "while", "as", "by", "on", "about", "which", "that", "so", "morning",
-    "afternoon", "evening", "night", "versus", "vs",
+    "afternoon", "evening", "night", "versus", "vs", "simple", "terms", "plain",
+    "english", "detail", "details", "depth", "brief", "short", "general", "scratch",
+    "kids", "children", "beginners", "layman", "laymans", "anyone", "everyone",
+    "someone", "explain", "why", "how", "what", "where", "when", "who", "which",
+    "tell", "describe", "understand", "world", "globe", "earth", "warming",
+    "cooling", "effect", "effects", "cause", "causes", "science", "physics", "nature",
 }
+
+# Distinct climate science concepts that must be routed to climate explanation rather than weather
+_CLIMATE_EXPLANATION_TOPICS = {
+    "global warming", "climate change", "greenhouse effect", "greenhouse gas",
+    "greenhouse gases", "carbon emissions", "carbon footprint", "carbon cycle",
+    "carbon dioxide", "deforestation", "ocean acidification", "renewable energy",
+    "fossil fuels", "albedo", "solar radiation", "ozone layer", "ozone depletion",
+    "sea level rise", "polar ice", "glacier melt", "permafrost", "permafrost thaw",
+    "amoc", "atlantic meridional", "circulation", "thermohaline",
+    "tipping point", "tipping points", "el nino", "la nina", "enso",
+    "paris agreement", "ipcc", "ar6", "radiative forcing", "climate sensitivity",
+    "transient climate response", "carbon budget", "geoengineering",
+    "solar radiation management", "extreme weather trends", "paleoclimate",
+}
+
+
+def _is_climate_or_general_inquiry(text: str) -> bool:
+    """Detect whether a query is primarily a conceptual climate science or Earth-system inquiry."""
+    lower = text.lower()
+    for topic in _CLIMATE_EXPLANATION_TOPICS:
+        if re.search(r'\b' + re.escape(topic) + r'\b', lower):
+            return True
+    return False
 
 
 def _clean_city_candidate(candidate: str) -> Optional[str]:
@@ -113,12 +180,23 @@ def _clean_city_candidate(candidate: str) -> Optional[str]:
 
     if not candidate or len(candidate) < 2:
         return None
-    # Reject if it's in stopwords, weather keywords, or non-city scientific terms
     lower_c = candidate.lower()
-    if lower_c in _STOP_WORDS or lower_c in WEATHER_KEYWORDS or lower_c in _NON_CITY_TERMS:
+    # Reject if it's in stopwords, weather keywords, non-city scientific terms, or common expressions
+    if (
+        lower_c in _STOP_WORDS
+        or lower_c in WEATHER_KEYWORDS
+        or lower_c in _NON_CITY_TERMS
+        or lower_c in _COMMON_EXPRESSION_TERMS
+    ):
         return None
+
+    # Reject if any individual token is an invalid city word (e.g. "simple", "terms", "explain", "causes")
+    candidate_tokens = lower_c.split()
+    if any(tok in _INVALID_CITY_WORDS for tok in candidate_tokens):
+        return None
+
     # Reject if too many words (likely a full phrase)
-    if len(candidate.split()) > 3:
+    if len(candidate_tokens) > 3:
         return None
     # Reject if it contains digits
     if re.search(r'\d', candidate):
@@ -164,7 +242,7 @@ def _extract_cities_from_text(text: str) -> List[str]:
         words = re.findall(r'[a-zA-Z]+', after)
         city_tokens = []
         for w in words:
-            if w.lower() in _BOUNDARY_WORDS:
+            if w.lower() in _BOUNDARY_WORDS or w.lower() in _INVALID_CITY_WORDS:
                 break
             city_tokens.append(w)
             if len(city_tokens) >= 3:
@@ -177,13 +255,47 @@ def _extract_cities_from_text(text: str) -> List[str]:
     return cities
 
 
+def _extract_last_weather_city_from_history(history: Optional[List[ChatHistoryMessage]]) -> Optional[str]:
+    """
+    Search conversation history for the most recently referenced valid weather city.
+    Prioritizes user queries to avoid matching incidental geographical words in assistant replies.
+    """
+    if not history:
+        return None
+
+    # Step 1: Scan recent user messages in reverse chronological order
+    for msg in reversed(history):
+        if msg.role.lower() in ("user", "human"):
+            cities = _extract_cities_from_text(msg.content)
+            if cities:
+                return cities[0]
+
+    # Step 2: Scan assistant messages for explicit telemetry location markers
+    for msg in reversed(history):
+        if msg.role.lower() in ("assistant", "model", "bot"):
+            # Match "Location: CityName, Country"
+            m = re.search(r'Location:\s*([a-zA-Z\s.-]+?)(?:,|$|\n)', msg.content, re.IGNORECASE)
+            if m:
+                cand = _clean_city_candidate(m.group(1))
+                if cand:
+                    return cand
+            # Match "weather in CityName"
+            m2 = re.search(r'\bweather in\s+([a-zA-Z\s.-]+?)(?:,|\sis|\swas|\scurrently|\.|\?|$)', msg.content, re.IGNORECASE)
+            if m2:
+                cand = _clean_city_candidate(m2.group(1))
+                if cand:
+                    return cand
+
+    return None
+
+
 def _resolve_query_context(
     prompt: str,
     history: Optional[List[ChatHistoryMessage]] = None,
     explicit_city: Optional[str] = None,
 ) -> Tuple[List[str], str]:
     """
-    Resolve target cities and intent ('current' | 'forecast' | 'compare' | 'none')
+    Resolve target cities and intent ('current' | 'forecast' | 'compare' | 'weather_missing_location' | 'none')
     from prompt, conversation history, and optional explicit parameter.
     """
     if explicit_city and explicit_city.strip():
@@ -199,6 +311,22 @@ def _resolve_query_context(
         re.search(r'\b' + re.escape(w) + r'\b', lower)
         for w in ["compare", "comparison", "versus", "vs", "difference between"]
     )
+    is_forecast = any(w in lower for w in FORECAST_KEYWORDS)
+    is_weather = is_forecast or any(re.search(r'\b' + re.escape(w) + r'\b', lower) for w in WEATHER_KEYWORDS)
+    is_climate_topic = _is_climate_or_general_inquiry(text)
+
+    # 1. Climate science / explanation questions without explicit weather/forecast request
+    # e.g., "Explain global warming in simple terms", "What causes the greenhouse effect?", "AMOC stability"
+    if is_climate_topic and not is_comparison:
+        # Check if user specifically asks for local weather in a city despite mentioning climate
+        cities_in_prompt = _extract_cities_from_text(text)
+        has_explicit_weather_request = any(
+            w in lower for w in ["current weather", "forecast", "is it raining", "temperature today"]
+        )
+        if not (cities_in_prompt and has_explicit_weather_request):
+            return [], "none"
+
+    # 2. Extract city candidates from the current prompt
     cities = _extract_cities_from_text(text)
 
     # Case A: Two cities mentioned directly in prompt for comparison
@@ -208,30 +336,31 @@ def _resolve_query_context(
     # Case B: Comparison requested with one city in prompt + reference to prior location in history
     if is_comparison and len(cities) == 1 and history:
         new_city = cities[0]
-        for prev in reversed(history):
-            prev_cities = _extract_cities_from_text(prev.content)
-            for pc in prev_cities:
-                if pc.lower() != new_city.lower():
-                    return [pc, new_city], "compare"
-
-    # Determine weather intent
-    is_forecast = any(w in lower for w in FORECAST_KEYWORDS)
-    is_weather = is_forecast or any(w in lower for w in WEATHER_KEYWORDS)
+        prev_city = _extract_last_weather_city_from_history(history)
+        if prev_city and prev_city.lower() != new_city.lower():
+            return [prev_city, new_city], "compare"
 
     # Case C: Single city in current prompt
     if len(cities) == 1:
-        intent = "forecast" if is_forecast else "current"
-        return [cities[0]], intent
+        # Only assign weather/forecast intent if the query is asking about weather/forecast/conditions/temperature
+        if is_weather or any(w in lower for w in ["in", "for", "at", "current", "conditions", "how is"]):
+            intent = "forecast" if is_forecast else "current"
+            return [cities[0]], intent
+        return [], "none"
 
-    # Case D: No city in prompt, but weather/forecast follow-up referencing history
-    if is_weather and history:
-        for prev in reversed(history):
-            prev_cities = _extract_cities_from_text(prev.content)
-            if prev_cities:
-                intent = "forecast" if is_forecast else "current"
-                return [prev_cities[0]], intent
+    # Case D: No city in prompt, but weather or forecast follow-up inquiry
+    # e.g. "What about tomorrow?", "What about humidity?", "Will it rain?", "Is it windy?"
+    if is_weather:
+        prev_city = _extract_last_weather_city_from_history(history)
+        if prev_city:
+            intent = "forecast" if is_forecast else "current"
+            return [prev_city], intent
+        else:
+            # Weather inquiry with NO city in prompt and NO city in history:
+            # Must ask user for the location instead of guessing or failing
+            return [], "weather_missing_location"
 
-    # Case E: General inquiry, elaboration ('Explain more'), or unsupported query
+    # Case E: General inquiry, elaboration, or non-weather inquiry
     return [], "none"
 
 
@@ -469,6 +598,27 @@ async def chat_interaction(request: ChatRequest, raw_req: Request = None) -> Cha
     forecast_telemetry: Optional[ForecastResponse] = None
     data_sources: List[str] = []
     follow_ups: List[str] = []
+
+    # Case 0: Genuine weather or forecast inquiry but location is completely missing from prompt & history
+    if intent == "weather_missing_location":
+        is_forecast = any(w in request.prompt.lower() for w in FORECAST_KEYWORDS)
+        inquiry_type = "forecast" if is_forecast else "weather"
+        missing_location_msg = (
+            f"Which city or location would you like the {inquiry_type} for? "
+            f"Please mention the city name (for example, **Chennai**, **London**, or **New York**)."
+        )
+        return ChatResponse(
+            content=missing_location_msg,
+            data_sources=["ClimateSphere Meteorological Gateway"],
+            suggested_follow_ups=[
+                "Weather in Chennai",
+                "Forecast for London",
+                "Temperature in Tokyo",
+            ],
+            model_identifier="ClimateSphere AI Gateway",
+            weather_telemetry=None,
+            forecast_telemetry=None,
+        )
 
     # Case 1: Comparison between two cities
     if intent == "compare" and len(cities) >= 2:
