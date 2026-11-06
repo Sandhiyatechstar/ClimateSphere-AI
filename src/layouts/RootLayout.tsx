@@ -8,7 +8,7 @@ export const RootLayout: React.FC = () => {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState<boolean>(false);
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-slate-50 font-sans text-navy-900 antialiased">
+    <div className="flex h-screen w-screen overflow-hidden bg-slate-50 font-sans text-navy-900 antialiased bg-earth-orbit">
       {/* Desktop Persistent Sidebar */}
       <div className="hidden lg:flex lg:flex-shrink-0 h-full">
         <Sidebar />
