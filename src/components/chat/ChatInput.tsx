@@ -236,22 +236,22 @@ export const ChatInput: React.FC = () => {
 
   // Initialize SpeechRecognition on component mount
   useEffect(() => {
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechRecognition) {
+    const SpeechRecognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognitionAPI) {
       console.warn('Web Speech API not supported in this browser.');
       return;
     }
-    const recognizer = new SpeechRecognition();
+    const recognizer = new SpeechRecognitionAPI();
     recognizer.continuous = false;
     recognizer.interimResults = true;
     recognizer.lang = 'en-US';
-    recognizer.onresult = (event: any) => {
+    recognizer.onresult = (event: SpeechRecognitionEvent) => {
       const transcript = Array.from(event.results)
-        .map((r: any) => r[0].transcript)
+        .map((result) => result[0].transcript)
         .join('');
       setInput(transcript);
     };
-    recognizer.onerror = (e) => {
+    recognizer.onerror = (e: SpeechRecognitionErrorEvent) => {
       console.error('Speech recognition error', e);
       setIsRecording(false);
     };
