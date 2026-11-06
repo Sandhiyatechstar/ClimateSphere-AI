@@ -4,12 +4,12 @@ import {
   Check,
   RotateCw,
   User,
-  Loader2,
   FileText,
   FileSpreadsheet,
 } from 'lucide-react';
 import { ChatMessage } from '../../types';
 import { MarkdownContent } from './MarkdownContent';
+import { ClimateRobotLoader } from './ClimateRobotLoader';
 import { formatTimestamp, formatFileSize } from '../../utils/formatters';
 import { ImageLightboxModal } from './ImageLightboxModal';
 import logoUrl from '../../assets/logo.svg';
@@ -241,18 +241,8 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
         );
       })}
 
-      {/* Thinking State Animation */}
-      {isThinking && (
-        <div className="flex items-start gap-3.5 animate-in fade-in duration-200">
-          <div className="relative h-8 w-8 rounded-xl bg-gradient-to-br from-cyan-400 to-blue-600 p-1 flex items-center justify-center shrink-0 border border-cyan-400/40 shadow-cyanGlow">
-            <Loader2 className="h-4 w-4 animate-spin text-slate-950" />
-          </div>
-          <div className="p-4 rounded-2xl rounded-tl-xs glass-card border border-cyan-500/30 text-xs font-mono text-cyan-300 flex items-center gap-2.5 shadow-floating">
-            <span className="h-2 w-2 rounded-full bg-cyan-400 animate-ping" />
-            <span>Analyzing atmospheric parameters & synthesizing climate science...</span>
-          </div>
-        </div>
-      )}
+      {/* Thinking State – Climate Robot Loader */}
+      {isThinking && <ClimateRobotLoader />}
 
       <div ref={bottomRef} />
     </div>

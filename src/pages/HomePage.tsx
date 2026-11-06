@@ -25,7 +25,7 @@ export const HomePage: React.FC = () => {
   const hasMessages = messages.length > 0;
 
   return (
-    <div className="relative h-screen h-[100dvh] w-full flex bg-earth-orbit overflow-hidden">
+    <div className="relative h-screen h-[100dvh] w-full flex bg-earth-orbit bg-earth-image overflow-hidden">
       {/* Background Starfield Dust & Orbital Atmospheric Glow */}
       <div className="absolute inset-0 stars-layer opacity-40 pointer-events-none" />
 

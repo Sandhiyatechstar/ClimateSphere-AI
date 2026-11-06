@@ -107,6 +107,58 @@
   }
 }
 
+/* ── Climate Robot Loader Animations ── */
+@keyframes climate-robot-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-5px); }
+}
+@keyframes climate-robot-blink {
+  0%, 90%, 100% { opacity: 1; }
+  95% { opacity: 0.1; }
+}
+@keyframes climate-robot-wave {
+  0%, 100% { transform: rotate(0deg); }
+  25% { transform: rotate(-8deg); }
+  75% { transform: rotate(8deg); }
+}
+
+.climate-robot-float {
+  animation: climate-robot-float 2.4s ease-in-out infinite;
+}
+.climate-robot-blink {
+  animation: climate-robot-blink 3.5s ease-in-out infinite;
+}
+.climate-robot-wave {
+  transform-origin: right center;
+  animation: climate-robot-wave 1.6s ease-in-out infinite;
+}
+
+/* Respect prefers-reduced-motion */
+@media (prefers-reduced-motion: reduce) {
+  .climate-robot-float,
+  .climate-robot-blink,
+  .climate-robot-wave {
+    animation: none;
+  }
+}
+
+/* ── Earth Background Image Layer ── */
+.bg-earth-image {
+  position: relative;
+}
+.bg-earth-image::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: url('./assets/Gloab.png');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  opacity: 0.18;
+  pointer-events: none;
+  z-index: 0;
+}
+
 /* Custom Sleek Scrollbars */
 ::-webkit-scrollbar {
   width: 5px;
