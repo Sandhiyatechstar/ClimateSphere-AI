@@ -1,27 +1,14 @@
 import React from 'react';
-import {
-  CloudSun,
-  Globe2,
-  Flame,
-  LineChart,
-  Sparkles,
-  ArrowRight,
-} from 'lucide-react';
-import { PRIMARY_SUGGESTIONS } from '../../utils/constants';
+import { Sparkles } from 'lucide-react';
 import logoUrl from '../../assets/logo.svg';
 
 interface WelcomeViewProps {
   onSelectPrompt: (promptText: string) => void;
 }
 
-const ICON_MAP: Record<string, React.ElementType> = {
-  CloudSun,
-  Globe2,
-  Flame,
-  LineChart,
-};
-
-export const WelcomeView: React.FC<WelcomeViewProps> = ({ onSelectPrompt }) => {
+export const WelcomeView: React.FC<WelcomeViewProps> = ({ onSelectPrompt: _onSelectPrompt }) => {
+  // _onSelectPrompt is accepted for parent compatibility but unused after suggestion cards were removed
+  void _onSelectPrompt;
   return (
     <div className="w-full flex-1 min-h-0 overflow-y-auto overscroll-contain">
       <div className="min-h-full flex flex-col items-center justify-center max-w-3xl mx-auto px-4 py-6 sm:py-8 text-center animate-in fade-in duration-300">
