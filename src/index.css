@@ -150,11 +150,11 @@
   content: '';
   position: absolute;
   inset: 0;
-  background-image: url('./assets/Gloab.png');
+  background-image: url('./assets/Earth Gloab.jpg');
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
-  opacity: 0.18;
+  opacity: 0.25;
   pointer-events: none;
   z-index: 0;
 }
