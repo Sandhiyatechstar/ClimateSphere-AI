@@ -30,6 +30,10 @@ export const ChatInput: React.FC = () => {
   const [isDragging, setIsDragging] = useState<boolean>(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [micNotice, setMicNotice] = useState<boolean>(false);
+  // New states for voice input
+  const [isRecording, setIsRecording] = useState<boolean>(false);
+  const recognizerRef = useRef<SpeechRecognition | null>(null);
+
   const [previewModal, setPreviewModal] = useState<{
     isOpen: boolean;
     url: string | null;
@@ -230,7 +234,61 @@ export const ChatInput: React.FC = () => {
     fileInputRef.current?.click();
   };
 
+  // Initialize SpeechRecognition on component mount
+  useEffect(() => {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      console.warn('Web Speech API not supported in this browser.');
+      return;
+    }
+    const recognizer = new SpeechRecognition();
+    recognizer.continuous = false;
+    recognizer.interimResults = true;
+    recognizer.lang = 'en-US';
+    recognizer.onresult = (event: any) => {
+      const transcript = Array.from(event.results)
+        .map((r: any) => r[0].transcript)
+        .join('');
+      setInput(transcript);
+    };
+    recognizer.onerror = (e) => {
+      console.error('Speech recognition error', e);
+      setIsRecording(false);
+    };
+    recognizer.onend = () => {
+      setIsRecording(false);
+    };
+    recognizerRef.current = recognizer;
+    return () => {
+      recognizer.stop();
+      recognizerRef.current = null;
+    };
+  }, []);
+
+  const startRecording = () => {
+    if (recognizerRef.current) {
+      try {
+        recognizerRef.current.start();
+        setIsRecording(true);
+      } catch (e) {
+        console.error('Failed to start speech recognition', e);
+      }
+    } else {
+      console.warn('SpeechRecognition not initialized');
+    }
+  };
+
+  const stopRecording = () => {
+    recognizerRef.current?.stop();
+    setIsRecording(false);
+  };
+
   const handleMicClick = () => {
+    if (isRecording) {
+      stopRecording();
+    } else {
+      startRecording();
+    }
     setMicNotice(true);
     setTimeout(() => setMicNotice(false), 2400);
   };
